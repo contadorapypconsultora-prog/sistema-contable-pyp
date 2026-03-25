@@ -1,0 +1,280 @@
+import React, { useState, useMemo } from 'react';
+import { PlusCircle, Trash2, Wallet, BarChart3, Table as TableIcon, FileText, TrendingUp, Scale, Settings } from 'lucide-react';
+
+// PLAN DE CUENTAS INICIAL
+const CUENTAS_BASE = [
+  { codigo: '1.1.01', nombre: 'Caja Principal', tipo: 'Activo' },
+  { codigo: '1.1.02', nombre: 'Banco Cta. Cte.', tipo: 'Activo' },
+  { codigo: '2.1.01', nombre: 'Proveedores', tipo: 'Pasivo' },
+  { codigo: '3.1.01', nombre: 'Capital Inicial', tipo: 'Patrimonio' },
+  { codigo: '4.1.01', nombre: 'Ventas Realizadas', tipo: 'Ingreso' },
+  { codigo: '5.1.01', nombre: 'Gastos de Alquiler', tipo: 'Egreso' }
+];
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('diario');
+  const [asientos, setAsientos] = useState([]);
+  const [cuentas, setCuentas] = useState(CUENTAS_BASE);
+
+  // Formulario Asiento
+  const [monto, setMonto] = useState('');
+  const [concepto, setConcepto] = useState('');
+  const [debe, setDebe] = useState(CUENTAS_BASE[0].codigo);
+  const [haber, setHaber] = useState(CUENTAS_BASE[4].codigo);
+
+  // Formulario Nueva Cuenta
+  const [nCodigo, setNCodigo] = useState('');
+  const [nNombre, setNNombre] = useState('');
+  const [nTipo, setNTipo] = useState('Activo');
+
+  const guardarAsiento = (e) => {
+    e.preventDefault();
+    if (!monto || !concepto) return;
+    const nuevo = {
+      id: Date.now(),
+      fecha: new Date().toLocaleDateString(),
+      monto: parseFloat(monto),
+      concepto,
+      cDebe: cuentas.find(c => c.codigo === debe),
+      cHaber: cuentas.find(c => c.codigo === haber)
+    };
+    setAsientos([nuevo, ...asientos]);
+    setMonto(''); setConcepto('');
+  };
+
+  const agregarCuenta = (e) => {
+    e.preventDefault();
+    if (!nCodigo || !nNombre) return;
+    setCuentas([...cuentas, { codigo: nCodigo, nombre: nNombre, tipo: nTipo }]);
+    setNCodigo(''); setNNombre('');
+  };
+
+  // CÁLCULOS FINANCIEROS (AUTOMÁTICOS)
+  const stats = useMemo(() => {
+    const saldos = cuentas.map(c => {
+      let totalDebe = 0, totalHaber = 0;
+      asientos.forEach(a => {
+        if (a.cDebe.codigo === c.codigo) totalDebe += a.monto;
+        if (a.cHaber.codigo === c.codigo) totalHaber += a.monto;
+      });
+      const balance = (c.tipo === 'Activo' || c.tipo === 'Egreso') ? (totalDebe - totalHaber) : (totalHaber - totalDebe);
+      return { ...c, debe: totalDebe, haber: totalHaber, saldo: balance };
+    });
+
+    const ingresos = saldos.filter(s => s.tipo === 'Ingreso').reduce((a, b) => a + b.saldo, 0);
+    const egresos = saldos.filter(s => s.tipo === 'Egreso').reduce((a, b) => a + b.saldo, 0);
+
+    return { saldos, utilidad: ingresos - egresos, ingresos, egresos };
+  }, [asientos, cuentas]);
+
+  const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+      {/* HEADER CORREGIDO: PressContabilidad - Contadora PyP Consultora */}
+      <header className="bg-indigo-800 text-white p-5 shadow-xl flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-white/10 p-2 rounded-xl border border-white/20">
+            <Scale size={28} className="text-indigo-200"/>
+          </div>
+          <div className="flex flex-col">
+            <h1 className="font-black text-2xl tracking-tighter uppercase leading-none">
+              PressContabilidad
+            </h1>
+            <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-[0.2em] mt-1">
+              Contadora PyP Consultora
+            </span>
+          </div>
+        </div>
+        <nav className="flex gap-1 bg-indigo-900/50 p-1.5 rounded-2xl border border-white/5">
+          {['diario', 'reportes', 'config'].map(t => (
+            <button 
+              key={t} 
+              onClick={() => setActiveTab(t)} 
+              className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all duration-200 ${activeTab === t ? 'bg-white text-indigo-800 shadow-lg' : 'text-indigo-200 hover:text-white hover:bg-white/5'}`}
+            >
+              {t === 'diario' ? 'Libro Diario' : t === 'reportes' ? 'Balances' : 'Cuentas'}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main className="max-w-6xl mx-auto p-6">
+        {activeTab === 'diario' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-white p-7 rounded-3xl shadow-sm border border-slate-100 h-fit">
+              <h2 className="text-xs font-black mb-6 text-indigo-600 uppercase tracking-widest">Registrar Operación</h2>
+              <form onSubmit={guardarAsiento} className="space-y-5">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Monto de la transacción</label>
+                  <input type="number" placeholder="0.00" value={monto} onChange={e => setMonto(e.target.value)} className="w-full border-none p-3 rounded-xl text-lg font-black bg-slate-50 text-indigo-700 mt-1 focus:ring-2 focus:ring-indigo-100 outline-none"/>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Detalle / Glosa</label>
+                  <input type="text" placeholder="Ej: Venta de mercaderías" value={concepto} onChange={e => setConcepto(e.target.value)} className="w-full border-none p-3 rounded-xl text-sm bg-slate-50 mt-1 focus:ring-2 focus:ring-indigo-100 outline-none"/>
+                </div>
+                
+                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                  <label className="text-[10px] font-black text-emerald-700 uppercase">Cuenta DEBE (Recibe)</label>
+                  <select value={debe} onChange={e => setDebe(e.target.value)} className="w-full bg-transparent border-none p-1 font-bold text-xs text-emerald-800 outline-none">
+                    {cuentas.map(c => <option key={c.codigo} value={c.codigo}>{c.codigo} - {c.nombre}</option>)}
+                  </select>
+                </div>
+
+                <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
+                  <label className="text-[10px] font-black text-rose-700 uppercase">Cuenta HABER (Entrega)</label>
+                  <select value={haber} onChange={e => setHaber(e.target.value)} className="w-full bg-transparent border-none p-1 font-bold text-xs text-rose-800 outline-none">
+                    {cuentas.map(c => <option key={c.codigo} value={c.codigo}>{c.codigo} - {c.nombre}</option>)}
+                  </select>
+                </div>
+
+                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95">
+                  Confirmar Registro
+                </button>
+              </form>
+            </div>
+            
+            <div className="md:col-span-2 space-y-4">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2">Movimientos Recientes</h3>
+              {asientos.map(a => (
+                <div key={a.id} className="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow group">
+                  <div className="flex gap-4 items-center">
+                    <div className="bg-slate-50 p-3 rounded-2xl group-hover:bg-indigo-50 transition-colors">
+                      <FileText size={20} className="text-slate-400 group-hover:text-indigo-500"/>
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{a.fecha}</div>
+                      <div className="font-bold text-slate-700 text-sm">{a.concepto}</div>
+                      <div className="flex gap-3 text-[9px] mt-1.5 font-black uppercase">
+                        <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">D: {a.cDebe.nombre}</span>
+                        <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">H: {a.cHaber.nombre}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-slate-900 tracking-tighter">{fmt(a.monto)}</div>
+                </div>
+              ))}
+              {asientos.length === 0 && (
+                <div className="text-center py-24 bg-white border-2 border-dashed border-slate-200 rounded-[3rem]">
+                  <p className="text-slate-300 font-bold italic text-sm">No hay registros en el libro diario aún.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'reportes' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <h3 className="text-indigo-600 font-black mb-8 flex items-center gap-2 uppercase text-[10px] tracking-widest"><TrendingUp size={16}/> Estado de Resultados</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+                    <span className="text-sm font-bold text-slate-500">Ingresos Totales</span>
+                    <span className="text-emerald-600 font-black text-lg">{fmt(stats.ingresos)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+                    <span className="text-sm font-bold text-slate-500">Egresos Totales</span>
+                    <span className="text-rose-600 font-black text-lg">{fmt(stats.egresos)}</span>
+                  </div>
+                  <div className={`mt-8 p-6 rounded-3xl flex justify-between items-center ${stats.utilidad >= 0 ? 'bg-emerald-50 border border-emerald-100' : 'bg-rose-50 border border-rose-100'}`}>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Resultado Neto</span>
+                      <span className="font-black text-slate-700">UTILIDAD DEL EJERCICIO</span>
+                    </div>
+                    <span className={`text-3xl font-black tracking-tighter ${stats.utilidad >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{fmt(stats.utilidad)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <h3 className="text-indigo-600 font-black mb-6 flex items-center gap-2 uppercase text-[10px] tracking-widest"><Scale size={16}/> Balances por Cuenta</h3>
+                <div className="max-h-80 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                  {stats.saldos.map(s => (
+                    <div key={s.codigo} className="flex justify-between items-center p-3 border-b border-slate-50 hover:bg-indigo-50/30 rounded-xl transition-colors">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-indigo-400">{s.codigo}</span>
+                        <span className="text-xs font-bold text-slate-700 uppercase">{s.nombre}</span>
+                      </div>
+                      <span className={`font-black text-sm ${s.saldo < 0 ? 'text-rose-500' : 'text-slate-900'}`}>{fmt(s.saldo)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <Wallet size={120}/>
+              </div>
+              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div className="max-w-md">
+                  <h3 className="text-indigo-400 font-black mb-4 uppercase text-[10px] tracking-[0.3em] flex items-center gap-2">Posición de Tesorería</h3>
+                  <p className="text-slate-400 text-sm leading-relaxed font-medium">Consolidado de todas las cuentas de activo disponibles (Caja y Bancos) al día de la fecha.</p>
+                </div>
+                <div className="text-center md:text-right">
+                  <div className="text-indigo-300 text-[11px] font-black uppercase tracking-widest mb-1">Efectivo Disponible</div>
+                  <div className="text-6xl font-black tracking-tighter text-emerald-400">
+                    {fmt(stats.saldos.filter(s => s.tipo === 'Activo').reduce((a, b) => a + b.saldo, 0))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'config' && (
+          <div className="max-w-xl mx-auto bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <div className="mb-10">
+              <h2 className="text-indigo-600 font-black flex items-center gap-2 uppercase text-xs tracking-widest mb-2"><Settings size={18}/> Plan de Cuentas</h2>
+              <p className="text-slate-400 text-xs font-medium uppercase italic">Añade o modifica la estructura contable de la consultora.</p>
+            </div>
+            
+            <form onSubmit={agregarCuenta} className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Código Contable</label>
+                  <input type="text" placeholder="Ej: 1.1.03" value={nCodigo} onChange={e => setNCodigo(e.target.value)} className="w-full bg-slate-50 border-none p-3 rounded-xl text-sm font-bold mt-1 outline-none focus:ring-2 focus:ring-indigo-100"/>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Rubro</label>
+                  <select value={nTipo} onChange={e => setNTipo(e.target.value)} className="w-full bg-slate-50 border-none p-3 rounded-xl text-sm font-bold mt-1 outline-none focus:ring-2 focus:ring-indigo-100">
+                    <option value="Activo">Activo</option>
+                    <option value="Pasivo">Pasivo</option>
+                    <option value="Patrimonio">Patrimonio</option>
+                    <option value="Ingreso">Ingreso</option>
+                    <option value="Egreso">Egreso</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Nombre Descriptivo</label>
+                <input type="text" placeholder="Nombre de la cuenta" value={nNombre} onChange={e => setNNombre(e.target.value)} className="w-full bg-slate-50 border-none p-3 rounded-xl text-sm font-bold mt-1 outline-none focus:ring-2 focus:ring-indigo-100"/>
+              </div>
+              <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-lg active:scale-[0.98]">
+                Incorporar al Plan
+              </button>
+            </form>
+
+            <div className="mt-12">
+              <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Cuentas Configuradas ({cuentas.length})</h4>
+              <div className="divide-y divide-slate-50 border-t border-slate-50">
+                {cuentas.map(c => (
+                  <div key={c.codigo} className="py-3 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-600 tracking-tight"><span className="text-indigo-400 font-mono mr-2">{c.codigo}</span> {c.nombre}</span>
+                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                      c.tipo === 'Activo' ? 'bg-blue-50 text-blue-600' :
+                      c.tipo === 'Pasivo' ? 'bg-amber-50 text-amber-600' :
+                      c.tipo === 'Patrimonio' ? 'bg-purple-50 text-purple-600' :
+                      c.tipo === 'Ingreso' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                    }`}>{c.tipo}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
